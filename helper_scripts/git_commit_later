@@ -1,0 +1,26 @@
+#!/bin/bash
+
+START_TIME=`echo $1|grep "^[0-9]*$"`
+END_TIME=`echo $2|grep "^[0-9]*$"`
+
+if [[ -z $START_TIME || -z $END_TIME || $1 == "--help" ]]; then
+    echo "Usage: git_commit_later <start_time> <end_time>"
+    echo "  start_time: an integer between 0 and 23"
+    echo "  end_time: an integer between 1 and 24"
+    echo "Performs a git commit with author and committer date the same as now"
+    echo "but with a random hour between start_time and end_time (not including"
+    echo "end_time). Its usage case should be obvious."
+    exit 1
+fi
+
+HOUR=$((START_TIME+RANDOM%(END_TIME-START_TIME)))
+if [[ $HOUR -lt 10 ]]; then
+    HOUR=0$HOUR
+fi
+
+COMMIT_TIME=`date +%Y-%m-%dT${HOUR}:%M:%S`
+
+export GIT_AUTHOR_DATE=$COMMIT_TIME
+export GIT_COMMITTER_DATE=$COMMIT_TIME
+
+git commit -v
