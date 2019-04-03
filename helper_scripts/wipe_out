@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# This script is designed to remove all traces of my work from a "borrowed" machine.
+# In particular, it will wipe out local Git repos for both company and personal, SSH keys/hosts,
+# YATTi data, and anything else I can think of.
+
+# https://stackoverflow.com/questions/394230/how-to-detect-the-os-from-a-bash-script
+# Short version: use the env variable OSTYPE and then if statements like so:
+# if [[ "$OSTYPE" == "darwin"* ]]; then
+# Possible values:
+# "darwin"* => Mac
+# "linux-gnu" => Linux
+# "freebsd"* => I'll probably never use, so just error-exit
+# "cygwin" => actual CygWin apps
+# "msys" => GitBash and other terminal apps in Windows
+
+# ~/other
+# ~/gitwork
+# ~/.ssh
+# ~/.bashrc
+# ~/.vimrc
+# ~/.vim
+# ~/.bash_history
+# YATTi data lives in different locations based on OS
+#   `/usr/bin/env python3 -m appdirs` will spit out all possible directories
+#   Use some fancy grepping to find the dirs we want
+
+# Make sure to copy script to ~ and re-run with it, then execute a sleeped rm on the ~/wipe_out
+# Use --fosure for the second run to do the actual run
+
+# Build out a --dry-run mode and --demo mode
+# Dry-run will echo commands, but not actually delete anything
+# Demo mode will assume it is running from ~/demo instead of ~/other and will only delete ~/demo
+
+# Build out --sleep mode
+# Sleep mode will wait 2 hours (with shown countdown) before actually executing
+# Make sure Ctrl-C actually kills script, not just sleep
+# Sleep should happen before --fosure kickoff
