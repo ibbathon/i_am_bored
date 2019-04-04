@@ -36,3 +36,14 @@
 # Sleep mode will wait 2 hours (with shown countdown) before actually executing
 # Make sure Ctrl-C actually kills script, not just sleep
 # Sleep should happen before --fosure kickoff
+
+function sleep_before_run () {
+    CURR_TIME=`date +%s`
+    END_TIME=$((CURR_TIME + 2*60*60))
+    while [[ $CURR_TIME -lt $END_TIME ]]; do
+        sleep 1
+        TIME_REMAINING=$((END_TIME-CURR_TIME))
+        echo -en "\r$TIME_REMAINING            "
+        CURR_TIME=`date +%s`
+    done
+}
