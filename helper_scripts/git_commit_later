@@ -1,26 +1,53 @@
 #!/bin/bash
 
-START_TIME=`echo $1|grep "^[0-9]*$"`
-END_TIME=`echo $2|grep "^[0-9]*$"`
+HOUR=`echo $1|grep "^[0-9]*$"`
+MINUTE_MIN=`echo $2|grep "^[0-9]*$"`
+MINUTE_MAX=`echo $3|grep "^[0-9]*$"`
 
-if [[ -z $START_TIME || -z $END_TIME || $1 == "--help" ]]; then
-    echo "Usage: git_commit_later <start_time> <end_time>"
-    echo "  start_time: an integer between 0 and 23"
-    echo "  end_time: an integer between 1 and 24"
+if [[ -z $HOUR || $1 == "--help" ]]; then
+    echo "Usage: git_commit_later <hour> [<minute_min>] [<minute_max>]"
+    echo "  hour: an integer between 0 and 23"
+    echo "  minute_min: minimum minute value for commit date"
+    echo "  minute_max: maximum minute value for commit date (non-inclusive)"
     echo "Performs a git commit with author and committer date the same as now"
-    echo "but with a random hour between start_time and end_time (not including"
-    echo "end_time). Its usage case should be obvious."
+    echo "but with a given hour and a random minute (optionally with a given"
+    echo "minimum value and maximum values, so you can put multiple in the"
+    echo "same hour). Its usage case should be obvious."
     exit 1
 fi
 
-HOUR=$((START_TIME+RANDOM%(END_TIME-START_TIME)))
+# Default min and max to 0 and 60 respectively
+if [[ -z $MINUTE_MIN ]]; then
+    MINUTE_MIN=0
+fi
+if [[ -z $MINUTE_MAX ]]; then
+    MINUTE_MAX=60
+fi
+# Check for invalid values and reset to defaults
+if [[ $MINUTE_MIN -lt 0 || $MINUTE_MIN -gt 59 ]]; then
+    MINUTE_MIN=0
+fi
+if [[ $MINUTE_MAX -lt $((MINUTE_MIN+1)) || $MINUTE_MAX -gt 60 ]]; then
+    MINUTE_MAX=60
+fi
+
+# Generate random minute value
+MINUTE=$((MINUTE_MIN+RANDOM%(MINUTE_MAX-MINUTE_MIN)))
+
+# Pad values with 0s
 if [[ $HOUR -lt 10 ]]; then
     HOUR=0$HOUR
 fi
+if [[ $MINUTE -lt 10 ]]; then
+    MINUTE=0$MINUTE
+fi
 
-COMMIT_TIME=`date +%Y-%m-%dT${HOUR}:%M:%S`
+COMMIT_TIME=`date +%Y-%m-%dT${HOUR}:${MINUTE}:%S`
 
 export GIT_AUTHOR_DATE=$COMMIT_TIME
 export GIT_COMMITTER_DATE=$COMMIT_TIME
 
 git commit -v
+
+unset GIT_AUTHOR_DATE
+unset GIT_COMMITTER_DATE
