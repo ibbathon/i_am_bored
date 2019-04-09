@@ -1,49 +1,244 @@
 #!/bin/bash
 
 # This script is designed to remove all traces of my work from a "borrowed" machine.
-# In particular, it will wipe out local Git repos for both company and personal, SSH keys/hosts,
-# YATTi data, and anything else I can think of.
+# In particular, it will wipe out local Git repos for both company and personal,
+# SSH keys/hosts, YATTi data, and anything else I can think of.
 
-# https://stackoverflow.com/questions/394230/how-to-detect-the-os-from-a-bash-script
-# Short version: use the env variable OSTYPE and then if statements like so:
-# if [[ "$OSTYPE" == "darwin"* ]]; then
-# Possible values:
-# "darwin"* => Mac
-# "linux-gnu" => Linux
-# "freebsd"* => I'll probably never use, so just error-exit
-# "cygwin" => actual CygWin apps
-# "msys" => GitBash and other terminal apps in Windows
+# I'd also like to be able to delete my docker containers/images/volumes, but tracking
+#   all those down is such a pain.
 
-# ~/other
-# ~/gitwork
-# ~/.ssh
-# ~/.bashrc
-# ~/.vimrc
-# ~/.vim
-# ~/.bash_history
-# YATTi data lives in different locations based on OS
-#   `/usr/bin/env python3 -m appdirs` will spit out all possible directories
-#   Use some fancy grepping to find the dirs we want
-
-# Make sure to copy script to ~ and re-run with it, then execute a sleeped rm on the ~/wipe_out
-# Use --fosure for the second run to do the actual run
-
-# Build out a --dry-run mode and --demo mode
-# Dry-run will echo commands, but not actually delete anything
-# Demo mode will assume it is running from ~/demo instead of ~/other and will only delete ~/demo
-
-# Build out --sleep mode
-# Sleep mode will wait 2 hours (with shown countdown) before actually executing
-# Make sure Ctrl-C actually kills script, not just sleep
-# Sleep should happen before --fosure kickoff
+#DEBUG=1 # Enable this to prevent any accidental deletions from not running with --dry-run
 
 function sleep_before_run () {
+    if [ ! $SLEEP_TIME ]; then
+        SLEEP_TIME=2*60*60
+    fi
     CURR_TIME=`date +%s`
-    END_TIME=$((CURR_TIME + 2*60*60))
+    END_TIME=$((CURR_TIME + SLEEP_TIME))
     while [[ $CURR_TIME -lt $END_TIME ]]; do
         sleep 1
         TIME_REMAINING=$((END_TIME-CURR_TIME))
         echo -en "\r$TIME_REMAINING            "
         CURR_TIME=`date +%s`
     done
+    echo ""
 }
+
+function usage () {
+    cat << EOM
+Usage: wipe_out [--sleep] [--dry-run] [--demo]
+
+Wipes out all my personal files on a borrowed machine. This includes:
+~/other/
+~/gitwork/
+~/Downloads/
+~/VirtualBox VMs/
+~/.ssh/
+~/.vim/
+~/.bash_sessions/
+~/.pyenv/
+~/quicknotes
+~/.bashrc
+~/.vimrc
+~/.bash_history
+~/.gitconfig
+~/.python_history
+~/.viminfo
+YATTi data
+Chrome data
+
+A confirmation check is made before actually wiping out the data.
+
+--sleep: Sleep for 2 hours before wiping out data. This also skips the
+         confirmation check. It can be cancelled with Ctrl-C.
+
+--dry-run: Do not actually execute any of the rm commands, just display them.
+
+--demo: Will behave similarly to normal mode, but will only delete the ~/demo/
+        folder. This is intended to test wipe_out's self-copy feature.
+EOM
+}
+
+function gather_files () {
+    if [ $DEMO ]; then
+        FILES[0]="${HOME}/demo test/"
+    else
+        FI=0
+        FILES[$((FI++))]="${HOME}/other/"
+        FILES[$((FI++))]="${HOME}/gitwork/"
+        FILES[$((FI++))]="${HOME}/Downloads/"
+        FILES[$((FI++))]="${HOME}/VirtualBox VMs/"
+        FILES[$((FI++))]="${HOME}/.ssh/"
+        FILES[$((FI++))]="${HOME}/.vim/"
+        if [ $MYOSTYPE == "cygwin" ]; then
+            FILES[$((FI++))]="${HOME}/vimfiles/"
+        fi
+        FILES[$((FI++))]="${HOME}/.bash_sessions/"
+        FILES[$((FI++))]="${HOME}/.pyenv/"
+        FILES[$((FI++))]="${HOME}/quicknotes"
+        FILES[$((FI++))]="${HOME}/.bashrc"
+        FILES[$((FI++))]="${HOME}/.vimrc"
+        if [ $MYOSTYPE == "cygwin" ]; then
+            FILES[$((FI++))]="${HOME}/_vimrc"
+        fi
+        FILES[$((FI++))]="${HOME}/.bash_history"
+        FILES[$((FI++))]="${HOME}/.gitconfig"
+        FILES[$((FI++))]="${HOME}/.python_history"
+        FILES[$((FI++))]="${HOME}/.viminfo"
+        if [ $MYOSTYPE == "cygwin" ]; then
+            FILES[$((FI++))]="${HOME}/_viminfo"
+        fi
+
+        set_yatti_folders
+        set_chrome_folders
+    fi
+}
+
+function set_yatti_folders () {
+    APPDIRS_OUTPUT=$(/usr/bin/env python3 -m appdirs \
+        |grep -A 7 "without optional 'version'")
+    USER_CONFIG_DIR=$(echo "$APPDIRS_OUTPUT"|grep "user_config_dir:" \
+        |sed "s/user_config_dir: //"|sed "s/MyApp/YATTi/g" \
+        |sed "s/MyCompany/GrayShadowSoftware/g")
+    USER_DATA_DIR=$(echo "$APPDIRS_OUTPUT"|grep "user_data_dir:" \
+        |sed "s/user_data_dir: //"|sed "s/MyApp/YATTi/g" \
+        |sed "s/MyCompany/GrayShadowSoftware/g")
+    FILES[$((FI++))]="$USER_CONFIG_DIR"
+    FILES[$((FI++))]="$USER_DATA_DIR"
+}
+
+function set_chrome_folders () {
+    if [ $MYOSTYPE == "cygwin" ]; then
+        FILES[$((FI++))]="${HOME}/AppData/Local/Google/Chrome/User Data/"
+    elif [ $MYOSTYPE == "mac" ]; then
+        FILES[$((FI++))]="${HOME}/Library/Application Support/Google/Chrome/"
+    elif [ $MYOSTYPE == "linux" ]; then
+        FILES[$((FI++))]="${HOME}/.config/google-chrome/"
+    fi
+}
+
+function set_os_type () {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        MYOSTYPE="mac"
+    elif [[ "$OSTYPE" == "cygwin" || "$OSTYPE" == "msys" ]]; then
+        MYOSTYPE="cygwin"
+    elif [[ "$OSTYPE" == "linux-gnu" ]]; then
+        MYOSTYPE="linux"
+    else
+        MYOSTYPE="unhandled"
+    fi
+}
+
+for p in "$@"; do
+    if [ "$p" == "--fosure" ]; then
+        FOSURE=1
+    elif [ "$p" == "--dry-run" ]; then
+        DRYRUN=1
+    elif [ "$p" == "--demo" ]; then
+        DEMO=1
+    elif [ "$p" == "--sleep" ]; then
+        SLEEP=1
+    elif [ "$p" == "--help" ]; then
+        usage
+        exit 0
+    else
+        echo "unknown param $p"
+        echo ""
+        usage
+        exit 1
+    fi
+done
+
+if [ $DEBUG ]; then
+    SLEEP_TIME=10
+    OSTYPE="darwin"
+fi
+
+set_os_type
+
+if [ $MYOSTYPE == "unhandled" ]; then
+    echo "Not currently configured for OSTYPE ${OSTYPE}."
+    exit 1
+fi
+
+if [ ! $FOSURE ]; then
+
+    if [ $DRYRUN ]; then
+        echo "Using dry-run mode"
+    fi
+    if [ $DEMO ]; then
+        echo "Using demo mode"
+    fi
+
+    # Execute the sleep before we copy to ~, so that there are no stray copies.
+    if [ $SLEEP ]; then
+        sleep_before_run
+    # If we did not sleep, ask for confirmation
+    else
+        echo -n "Are you sure you want to wipe out your personal files? (y/N) "
+        read CONFIRM
+        if [ "$CONFIRM" == "y" -o "$CONFIRM" == "Y" ]; then
+            echo "Continuing with delete"
+        else
+            echo "Exiting"
+            exit 0
+        fi
+    fi
+
+    # We're past the sleep/confirm, so let's copy this program to the main user
+    # folder and then run with (mostly) the same parameters.
+    /bin/cp "$0" $HOME/
+    NEW_COMMAND="$HOME/wipe_out --fosure"
+    if [ $DRYRUN ]; then
+        NEW_COMMAND="$NEW_COMMAND --dry-run"
+    fi
+    if [ $DEMO ]; then
+        NEW_COMMAND="$NEW_COMMAND --demo"
+    fi
+
+    # Kick off the new run with a delay, and then exit.
+    (sleep 2; $NEW_COMMAND) &
+    exit 0
+
+# We are now running the actual delete. Do not ask for any input.
+else
+
+    # Blank line so we skip the command prompt.
+    echo ""
+
+    if [ $DRYRUN ]; then
+        echo "Doing a dry-run. No deletes except for the script copy will" \
+            "be issued."
+    elif [ $DEBUG ]; then
+        echo "Running in debug mode. No files will be deleted, even if in" \
+            "demo mode."
+    elif [ $DEMO ]; then
+        echo "Running in demo mode. Only this script and the ~/demo folder" \
+            "will be deleted."
+    else
+        echo "Running for real. Folders listed in help will be deleted."
+    fi
+
+    # Gather up the files to be deleted in an array.
+    gather_files
+
+    # Now delete them.
+    for ((i=0; i < ${#FILES[@]}; i++)); do
+        f="${FILES[$i]}"
+        COMMAND=(/bin/rm -rf "${f}")
+        if [ $DRYRUN ]; then
+            echo "Would have deleted \"${f}\""
+        else
+            echo "Deleting \"${f}\""
+            if [ $DEBUG ]; then
+                echo "Would have deleted \"${f}\""
+            else
+                "${COMMAND[@]}"
+            fi
+        fi
+    done
+
+    # Delete this script with a delay.
+    (sleep 2; /bin/rm $0) &
+
+fi
