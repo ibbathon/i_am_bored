@@ -95,28 +95,33 @@ class CraftingIdleClickerGame:
     def fix_desired_ranks(self):
         """Adjusts ranks of all earlier products to provide enough input
         inventory for later products."""
-        additional_ranks_needed = {}
+        products_needed = {}
+        print("Actual targets:")
         for rankable in reversed(self.rankables):
             # Check if later products need more of this product than we
             # currently desire.
-            if rankable.product.name in additional_ranks_needed:
-                rankable.desired_rank = max(rankable.desired_rank,
-                    additional_ranks_needed[rankable.product.name])
-                del additional_ranks_needed[rankable.product.name]
+            if rankable.product.name in products_needed:
+                ranks_needed = products_needed[rankable.product.name] / \
+                    rankable.product.output_quantity
+                rankable.desired_rank = max(rankable.desired_rank, ranks_needed)
+                del products_needed[rankable.product.name]
 
             # Ranks should always be a multiple of 10.
             rankable.desired_rank = 10 * math.ceil(rankable.desired_rank / 10)
+            if rankable.desired_rank > 0:
+                print("{}: {}".format(
+                    rankable.product.name, rankable.desired_rank))
 
             # Indicate how many we need of each of the inputs.
             if rankable.product.input1_quantity > 0:
-                if rankable.product.input1_name not in additional_ranks_needed:
-                    additional_ranks_needed[rankable.product.input1_name] = 0
-                additional_ranks_needed[rankable.product.input1_name] += \
+                if rankable.product.input1_name not in products_needed:
+                    products_needed[rankable.product.input1_name] = 0
+                products_needed[rankable.product.input1_name] += \
                     rankable.desired_rank * rankable.product.input1_quantity
             if rankable.product.input2_quantity > 0:
-                if rankable.product.input2_name not in additional_ranks_needed:
-                    additional_ranks_needed[rankable.product.input2_name] = 0
-                additional_ranks_needed[rankable.product.input2_name] += \
+                if rankable.product.input2_name not in products_needed:
+                    products_needed[rankable.product.input2_name] = 0
+                products_needed[rankable.product.input2_name] += \
                     rankable.desired_rank * rankable.product.input2_quantity
 
     def calc_profit_per_tick(self):
@@ -197,6 +202,7 @@ class CraftingIdleClickerDriver:
         self.read_target_data()
         game = CraftingIdleClickerGame(self.products,self.target_ranks)
         game.run()
+        print()
         print("Ticks required: {}".format(game.tick_count))
 
 if __name__ == "__main__":
